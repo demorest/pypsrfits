@@ -11,8 +11,11 @@ Example usage:
 import pypsrfits
 f = pypsrfits.PSRFITS('my_file.fits')
 
-# Inspect the FITS header
-print f.hdr
+# A full fitsio object for the file is available:
+f.fits
+
+# The main header is also accessible:
+f.hdr
 
 # Read all data from row 13
 d = f.get_data(13)
