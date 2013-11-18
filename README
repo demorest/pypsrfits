@@ -1,0 +1,23 @@
+pypsrfits 
+P. Demorest, Nov 2013
+---------------------
+
+This is a very simple python module for reading search-mode PSRFITS data
+into python.  It requires the fitsio python module (and numpy of course).
+
+Example usage:
+
+# Import the module, open a file
+import pypsrfits
+f = pypsrfits.PSRFITS('my_file.fits')
+
+# Inspect the FITS header
+print f.hdr
+
+# Read all data from row 13
+d = f.get_data(13)
+
+# Read all data in entire file, downsampling in time by
+# a factor of 256
+d = f.get_data(0,-1,downsamp=32)
+

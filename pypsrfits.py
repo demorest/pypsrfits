@@ -1,0 +1,121 @@
+#! /usr/bin/env python
+
+# Simple code to read search-mode PSRFITS data arrays into python
+
+import fitsio
+import numpy
+
+class PSRFITS:
+    def __init__(self, fname=None):
+        self.fits = None
+        if fname != None:
+            self.open(fname)
+
+    def open(self,fname):
+        """Open the specified PSRFITS file.  A fitsio object is
+        created and stored as self.fits"""
+        self.fits = fitsio.FITS(fname,'r')
+        self.hdr = self.fits[0].read_header()
+
+    def get_freqs(self,row=1):
+        """Return the frequency array from the specified subint."""
+        return self.fits['SUBINT']['DAT_FREQ'][row]
+
+    def get_data(self, start_row=0, end_row=None, 
+            downsamp=1, apply_scales=True):
+        """Read the data from the specified rows and return it as a
+        single array.  Dimensions are [time, poln, chan].
+
+        options:
+          start_row: first subint read (0-based index)
+
+          end_row: final subint to read.  None implies end_row=start_row.
+            Negative values imply offset from the end, i.e.
+            get_data(0,-1) would read the entire file.  (Don't forget 
+            that PSRFITS files are often huge so this might be a bad idea).
+
+          downsamp: downsample the data in time as they are being read in.
+            The downsample factor should evenly divide the number of spectra
+            per row.  downsamp=0 means integrate each row completely.
+
+          apply_scales: set to False to avoid applying the scale/offset
+            data stored in the file.
+
+        Notes:
+          - Only 8-bit and 16-bit data are currently understood
+        """
+
+        if self.hdr['OBS_MODE'].strip() != 'SEARCH':
+            raise RuntimeError("get_data() only works on SEARCH-mode PSRFITS")
+
+        subhdr = self.fits['SUBINT'].read_header()
+        nsblk = subhdr['NSBLK']
+        npol = subhdr['NPOL']
+        nchan = subhdr['NCHAN']
+        nbit = subhdr['NBITS']
+        poltype = subhdr['POL_TYPE']
+        nrows_file = subhdr['NAXIS2']
+
+        if downsamp == 0:
+            downsamp = nsblk
+
+        if downsamp > nsblk:
+            downsamp = nsblk
+
+        if end_row==None:
+            end_row = start_row
+
+        if end_row<0:
+            end_row = nrows_file + end_row
+
+        nrows_tot = end_row - start_row + 1
+        nsblk_ds = nsblk / downsamp
+
+        # allocate the result array
+        result = numpy.zeros((nrows_tot * nsblk_ds, npol, nchan),
+                dtype=numpy.float32)
+
+        signpol = 1
+        if 'AABB' in poltype:
+            signpol = 2
+
+        # Data types of the signed and unsigned
+        if nbit==8:
+            s_t = numpy.int8
+            u_t = numpy.uint8
+        elif nbit==16:
+            s_t = numpy.int16
+            u_t = numpy.uint16
+        else:
+            # This is an error
+            pass
+
+        for irow in range(nrows_tot):
+
+            if apply_scales:
+                offsets = self.fits['SUBINT']['DAT_OFFS'][irow+start_row]
+                scales = self.fits['SUBINT']['DAT_SCL'][irow+start_row]
+                scales = scales.reshape((npol,nchan))
+                offsets = offsets.reshape((npol,nchan))
+
+            dtmp = self.fits['SUBINT']['DATA'][irow+start_row]
+
+            # Fix up the data type
+            if (nbit==16):
+                dtmp = numpy.fromstring(dtmp.tostring(),dtype=numpy.int16)
+                dtmp = dtmp.reshape((nsblk,npol,nchan,1))
+
+            for isamp in range(nsblk_ds):
+                for ipol in range(npol):
+                    if ipol<signpol: 
+                        t = u_t
+                    else: 
+                        t = s_t
+                    result[irow*nsblk_ds+isamp,ipol,:] = \
+                            dtmp[isamp*downsamp:(isamp+1)*downsamp,ipol,:,0].astype(t).mean(0)
+                    if apply_scales:
+                        result[irow*nsblk_ds+isamp,ipol,:] *= scales[ipol,:]
+                        result[irow*nsblk_ds+isamp,ipol,:] += offsets[ipol,:]
+
+        return result
+
