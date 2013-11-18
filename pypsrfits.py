@@ -17,7 +17,7 @@ class PSRFITS:
         self.fits = fitsio.FITS(fname,'r')
         self.hdr = self.fits[0].read_header()
 
-    def get_freqs(self,row=1):
+    def get_freqs(self,row=0):
         """Return the frequency array from the specified subint."""
         return self.fits['SUBINT']['DAT_FREQ'][row]
 
@@ -71,14 +71,6 @@ class PSRFITS:
         nrows_tot = end_row - start_row + 1
         nsblk_ds = nsblk / downsamp
 
-        # allocate the result array
-        result = numpy.zeros((nrows_tot * nsblk_ds, npol, nchan),
-                dtype=numpy.float32)
-
-        signpol = 1
-        if 'AABB' in poltype:
-            signpol = 2
-
         # Data types of the signed and unsigned
         if nbit==8:
             s_t = numpy.int8
@@ -87,8 +79,15 @@ class PSRFITS:
             s_t = numpy.int16
             u_t = numpy.uint16
         else:
-            # This is an error
-            pass
+            raise RuntimeError("Only 8- or 16-bit data are currently handled.")
+
+        # allocate the result array
+        result = numpy.zeros((nrows_tot * nsblk_ds, npol, nchan),
+                dtype=numpy.float32)
+
+        signpol = 1
+        if 'AABB' in poltype:
+            signpol = 2
 
         for irow in range(nrows_tot):
 
