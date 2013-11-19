@@ -13,9 +13,12 @@ class PSRFITS:
 
     def open(self,fname):
         """Open the specified PSRFITS file.  A fitsio object is
-        created and stored as self.fits"""
+        created and stored as self.fits.  For convenience, the
+        main header is stored as self.hdr, and the SUBINT header
+        as self.subhdr."""
         self.fits = fitsio.FITS(fname,'r')
         self.hdr = self.fits[0].read_header()
+        self.subhdr = self.fits['SUBINT'].read_header()
 
     def get_freqs(self,row=0):
         """Return the frequency array from the specified subint."""
@@ -48,13 +51,12 @@ class PSRFITS:
         if self.hdr['OBS_MODE'].strip() != 'SEARCH':
             raise RuntimeError("get_data() only works on SEARCH-mode PSRFITS")
 
-        subhdr = self.fits['SUBINT'].read_header()
-        nsblk = subhdr['NSBLK']
-        npol = subhdr['NPOL']
-        nchan = subhdr['NCHAN']
-        nbit = subhdr['NBITS']
-        poltype = subhdr['POL_TYPE']
-        nrows_file = subhdr['NAXIS2']
+        nsblk = self.subhdr['NSBLK']
+        npol = self.subhdr['NPOL']
+        nchan = self.subhdr['NCHAN']
+        nbit = self.subhdr['NBITS']
+        poltype = self.subhdr['POL_TYPE']
+        nrows_file = self.subhdr['NAXIS2']
 
         if downsamp == 0:
             downsamp = nsblk

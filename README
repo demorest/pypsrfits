@@ -14,8 +14,9 @@ f = pypsrfits.PSRFITS('my_file.fits')
 # A full fitsio object for the file is available:
 f.fits
 
-# The main header is also accessible:
+# The main header and SUBINT header are also accessible:
 f.hdr
+f.subhdr
 
 # Read all data from row 13
 d = f.get_data(13)
