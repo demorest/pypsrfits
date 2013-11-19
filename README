@@ -22,5 +22,5 @@ d = f.get_data(13)
 
 # Read all data in entire file, downsampling in time by
 # a factor of 256
-d = f.get_data(0,-1,downsamp=32)
+d = f.get_data(0,-1,downsamp=256)
 
