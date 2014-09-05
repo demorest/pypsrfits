@@ -45,7 +45,7 @@ class PSRFITS:
             data stored in the file.
 
         Notes:
-          - Only 8-bit and 16-bit data are currently understood
+          - Only 8, 16, and 32 bit data are currently understood
         """
 
         if self.hdr['OBS_MODE'].strip() != 'SEARCH':
@@ -80,8 +80,11 @@ class PSRFITS:
         elif nbit==16:
             s_t = numpy.int16
             u_t = numpy.uint16
+        elif nbit==32:
+            s_t = numpy.float32
+            u_t = numpy.float32
         else:
-            raise RuntimeError("Only 8- or 16-bit data are currently handled.")
+            raise RuntimeError("Unhandled number of bits (%d)" % nbit)
 
         # allocate the result array
         result = numpy.zeros((nrows_tot * nsblk_ds, npol, nchan),
