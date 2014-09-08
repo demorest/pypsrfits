@@ -25,7 +25,7 @@ class PSRFITS:
         return self.fits['SUBINT']['DAT_FREQ'][row]
 
     def get_data(self, start_row=0, end_row=None, 
-            downsamp=1, apply_scales=True):
+            downsamp=1, fdownsamp=1, apply_scales=True):
         """Read the data from the specified rows and return it as a
         single array.  Dimensions are [time, poln, chan].
 
@@ -40,6 +40,9 @@ class PSRFITS:
           downsamp: downsample the data in time as they are being read in.
             The downsample factor should evenly divide the number of spectra
             per row.  downsamp=0 means integrate each row completely.
+
+          fdownsamp: downsample the data in freq as they are being read in.
+            The downsample factor should evenly divide the number of channels.
 
           apply_scales: set to False to avoid applying the scale/offset
             data stored in the file.
@@ -64,6 +67,12 @@ class PSRFITS:
         if downsamp > nsblk:
             downsamp = nsblk
 
+        if fdownsamp == 0:
+            downsamp = nchan
+
+        if fdownsamp > nchan:
+            fdownsamp = nchan
+
         if end_row==None:
             end_row = start_row
 
@@ -73,8 +82,12 @@ class PSRFITS:
         if nsblk % downsamp > 0:
             print "Warning: downsamp does not evenly divide NSBLK."
 
+        if nchan % fdownsamp > 0:
+            print "Warning: fdownsamp does not evenly divide NCHAN."
+
         nrows_tot = end_row - start_row + 1
         nsblk_ds = nsblk / downsamp
+        nchan_ds = nchan / fdownsamp
 
         # Data types of the signed and unsigned
         if nbit==8:
@@ -90,7 +103,8 @@ class PSRFITS:
             raise RuntimeError("Unhandled number of bits (%d)" % nbit)
 
         # allocate the result array
-        result = numpy.zeros((nrows_tot * nsblk_ds, npol, nchan),
+        sampresult = numpy.zeros(nchan, dtype=numpy.float32)
+        result = numpy.zeros((nrows_tot * nsblk_ds, npol, nchan_ds),
                 dtype=numpy.float32)
 
         signpol = 1
@@ -118,11 +132,19 @@ class PSRFITS:
                         t = u_t
                     else: 
                         t = s_t
-                    result[irow*nsblk_ds+isamp,ipol,:] = \
-                            dtmp[isamp*downsamp:(isamp+1)*downsamp,ipol,:,0].astype(t).mean(0)
+
+                    sampresult = dtmp[isamp*downsamp:(isamp+1)*downsamp,
+                            ipol,:,0].astype(t).mean(0)
+
                     if apply_scales:
-                        result[irow*nsblk_ds+isamp,ipol,:] *= scales[ipol,:]
-                        result[irow*nsblk_ds+isamp,ipol,:] += offsets[ipol,:]
+                        sampresult *= scales[ipol,:]
+                        sampresult += offsets[ipol,:]
+
+                    if fdownsamp==1:
+                        result[irow*nsblk_ds+isamp,ipol,:] = sampresult
+                    else:
+                        result[irow*nsblk_ds+isamp,ipol,:] = \
+                                sampresult.reshape((-1,fdownsamp)).mean(1)
 
         return result
 
