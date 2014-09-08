@@ -70,6 +70,9 @@ class PSRFITS:
         if end_row<0:
             end_row = nrows_file + end_row
 
+        if nsblk % downsamp > 0:
+            print "Warning: downsamp does not evenly divide NSBLK."
+
         nrows_tot = end_row - start_row + 1
         nsblk_ds = nsblk / downsamp
 
