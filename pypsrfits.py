@@ -25,7 +25,8 @@ class PSRFITS:
         return self.fits['SUBINT']['DAT_FREQ'][row]
 
     def get_data(self, start_row=0, end_row=None, 
-            downsamp=1, fdownsamp=1, apply_scales=True):
+            downsamp=1, fdownsamp=1, apply_scales=True,
+            get_ft=False,squeeze=False):
         """Read the data from the specified rows and return it as a
         single array.  Dimensions are [time, poln, chan].
 
@@ -47,6 +48,11 @@ class PSRFITS:
           apply_scales: set to False to avoid applying the scale/offset
             data stored in the file.
 
+          get_ft: if True return time and freq arrays as well.
+
+          squeeze: if True, "squeeze" the data array (remove len-1 
+            dimensions).
+
         Notes:
           - Only 8, 16, and 32 bit data are currently understood
         """
@@ -58,6 +64,7 @@ class PSRFITS:
         npol = self.subhdr['NPOL']
         nchan = self.subhdr['NCHAN']
         nbit = self.subhdr['NBITS']
+        tbin = self.subhdr['TBIN']
         poltype = self.subhdr['POL_TYPE']
         nrows_file = self.subhdr['NAXIS2']
 
@@ -88,6 +95,7 @@ class PSRFITS:
         nrows_tot = end_row - start_row + 1
         nsblk_ds = nsblk / downsamp
         nchan_ds = nchan / fdownsamp
+        tbin_ds = tbin * downsamp
 
         # Data types of the signed and unsigned
         if nbit==8:
@@ -106,6 +114,9 @@ class PSRFITS:
         sampresult = numpy.zeros(nchan, dtype=numpy.float32)
         result = numpy.zeros((nrows_tot * nsblk_ds, npol, nchan_ds),
                 dtype=numpy.float32)
+        if get_ft:
+            freqs = numpy.zeros(nchan_ds)
+            times = numpy.zeros(nrows_tot*nsblk_ds)
 
         signpol = 1
         if 'AABB' in poltype:
@@ -118,6 +129,11 @@ class PSRFITS:
                 scales = self.fits['SUBINT']['DAT_SCL'][irow+start_row]
                 scales = scales.reshape((npol,nchan))
                 offsets = offsets.reshape((npol,nchan))
+            
+            if get_ft:
+                t0_row = self.fits['SUBINT']['OFFS_SUB'][irow+start_row] \
+                        - self.fits['SUBINT']['TSUBINT'][irow+start_row]/2.0
+                freqs_row = self.fits['SUBINT']['DAT_FREQ'][irow+start_row]
 
             dtmp = self.fits['SUBINT']['DATA'][irow+start_row]
 
@@ -136,15 +152,28 @@ class PSRFITS:
                     sampresult = dtmp[isamp*downsamp:(isamp+1)*downsamp,
                             ipol,:,0].astype(t).mean(0)
 
+                    if get_ft: 
+                        times[irow*nsblk_ds+isamp] = t0_row \
+                                + (isamp+0.5)*tbin_ds
+
                     if apply_scales:
                         sampresult *= scales[ipol,:]
                         sampresult += offsets[ipol,:]
 
                     if fdownsamp==1:
                         result[irow*nsblk_ds+isamp,ipol,:] = sampresult
+                        # Assumes freqs don't change:
+                        if get_ft: freqs[:] = freqs_row[:]
                     else:
                         result[irow*nsblk_ds+isamp,ipol,:] = \
                                 sampresult.reshape((-1,fdownsamp)).mean(1)
+                        if get_ft: 
+                            freqs[:] = freqs_row.reshape((-1,fdownsamp)).mean(1)
 
-        return result
+        if squeeze: result = result.squeeze()
+
+        if get_ft:
+            return (result, times, freqs)
+        else:
+            return result
 
